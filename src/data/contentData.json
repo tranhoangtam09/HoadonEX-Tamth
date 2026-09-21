@@ -1,0 +1,169 @@
+{
+  "app": {
+    "title": "Invoice Extractor V3",
+    "subtitle": "Kết xuất & Chuẩn hóa Hóa đơn Điện tử",
+    "version": "3.0.0 PRO",
+    "tagline": "AI-ready OCR • XML Parser an toàn • Đối chiếu trực quan • Gộp PDF nhóm 10 • Xuất Excel chuẩn mẫu",
+    "logo": "./assets/app_logo.svg",
+    "templateName": "Template bang ke hoa don bu dap VND.xlsx",
+    "sheetName": "Bảng kê hóa đơn GN bù đắp"
+  },
+  "fields": {
+    "stt": {
+      "key": "stt",
+      "col": "A",
+      "label": "STT",
+      "placeholder": "1",
+      "description": "Số thứ tự hóa đơn trong bảng kê"
+    },
+    "tax_code": {
+      "key": "tax_code",
+      "col": "B",
+      "label": "Mã số thuế",
+      "placeholder": "0101234567 hoặc 0101234567-001",
+      "description": "Mã số thuế bên bán (10 số hoặc 10-3 số)"
+    },
+    "seller_name": {
+      "key": "seller_name",
+      "col": "C",
+      "label": "Tên đơn vị phát hành",
+      "placeholder": "Công ty TNHH / Cổ phần...",
+      "description": "Tên doanh nghiệp hoặc tổ chức phát hành hóa đơn"
+    },
+    "template_symbol": {
+      "key": "template_symbol",
+      "col": "D",
+      "label": "Ký hiệu mẫu số",
+      "placeholder": "1/001, 1C24TAA",
+      "description": "Ký hiệu mẫu hóa đơn theo Thông tư 78 / NĐ 123"
+    },
+    "invoice_symbol": {
+      "key": "invoice_symbol",
+      "col": "E",
+      "label": "Ký hiệu hóa đơn",
+      "placeholder": "1C24TYY, C24TAA...",
+      "description": "Ký hiệu series phát hành hóa đơn"
+    },
+    "invoice_number": {
+      "key": "invoice_number",
+      "col": "F",
+      "label": "Số hóa đơn/HĐ/ĐĐH",
+      "placeholder": "123456, 0000001...",
+      "description": "Số hóa đơn hoặc số hợp đồng/đơn đặt hàng"
+    },
+    "invoice_date": {
+      "key": "invoice_date",
+      "col": "G",
+      "label": "Ngày hóa đơn",
+      "placeholder": "dd/mm/yyyy",
+      "description": "Ngày ký hoặc lập hóa đơn chuẩn định dạng Việt Nam"
+    },
+    "invoice_amount": {
+      "key": "invoice_amount",
+      "col": "H",
+      "label": "Số tiền hóa đơn",
+      "placeholder": "0",
+      "description": "Tổng tiền thanh toán đã bao gồm thuế GTGT"
+    },
+    "currency": {
+      "key": "currency",
+      "col": "I",
+      "label": "Loại tiền",
+      "placeholder": "VND",
+      "description": "Đơn vị tiền tệ (VND, USD, EUR...)"
+    },
+    "purpose": {
+      "key": "purpose",
+      "col": "J",
+      "label": "Mặt hàng / Mục đích",
+      "placeholder": "Cước viễn thông, xăng dầu, thiết bị CNTT...",
+      "description": "Nội dung diễn giải hàng hóa dịch vụ hoặc mục đích chi"
+    },
+    "debt_amount": {
+      "key": "debt_amount",
+      "col": "K",
+      "label": "Số tiền nhận nợ",
+      "placeholder": "0",
+      "description": "Số tiền ghi nhận nợ giải ngân bù đắp"
+    },
+    "paid_date": {
+      "key": "paid_date",
+      "col": "L",
+      "label": "Ngày đã thanh toán",
+      "placeholder": "dd/mm/yyyy",
+      "description": "Ngày thực tế đã thanh toán tiền cho bên bán"
+    },
+    "paid_amount": {
+      "key": "paid_amount",
+      "col": "M",
+      "label": "Số tiền đã thanh toán",
+      "placeholder": "0",
+      "description": "Số tiền thực tế doanh nghiệp đã chi trả"
+    }
+  },
+  "confidenceBadges": {
+    "high": {
+      "min": 95,
+      "text": "Rất cao (≥95%)",
+      "colorClass": "bg-emerald-50 text-emerald-700 border-emerald-200",
+      "indicator": "bg-emerald-500"
+    },
+    "mid": {
+      "min": 80,
+      "text": "Trung bình (80-94%)",
+      "colorClass": "bg-amber-50 text-amber-700 border-amber-200",
+      "indicator": "bg-amber-500"
+    },
+    "low": {
+      "min": 0,
+      "text": "Cần kiểm tra (<80%)",
+      "colorClass": "bg-rose-50 text-rose-700 border-rose-200",
+      "indicator": "bg-rose-500"
+    }
+  },
+  "actions": {
+    "uploadFiles": "Tải hóa đơn lên",
+    "loadSample": "Nạp dữ liệu mẫu thực tế",
+    "reviewData": "Kiểm tra dữ liệu",
+    "mergePdf": "Gộp PDF (Nhóm ≤10)",
+    "exportExcel": "Xuất Excel chuẩn mẫu",
+    "clearAll": "Xóa danh sách",
+    "saveChanges": "Lưu thay đổi",
+    "copyValue": "Sao chép",
+    "quickFill": "Đồng bộ nợ & thanh toán"
+  },
+  "uploadSection": {
+    "heading": "Tải hóa đơn xử lý hàng loạt",
+    "description": "Hỗ trợ file XML hóa đơn gốc (TCT/MISA/Viettel/VNPT...), PDF văn bản & scan, JPG, PNG. Hệ thống tự động bóc tách, chuẩn hóa dữ liệu và đối soát trùng lặp.",
+    "dropText": "Kéo thả hóa đơn vào đây hoặc bấm để chọn tệp",
+    "fileSupport": "PDF, XML, JPG, JPEG, PNG • Tối đa 1.000 file mỗi phiên",
+    "batchGuide": "Gợi ý: Tải cùng lúc nhiều hóa đơn để hệ thống tự động gom nhóm 10 file/PDF và tạo bảng kê hoàn chỉnh."
+  },
+  "stats": {
+    "totalInvoices": "Tổng hóa đơn",
+    "avgConfidence": "Độ tin cậy TB",
+    "warnings": "Cảnh báo dữ liệu",
+    "duplicates": "Trùng lặp",
+    "pdfGroups": "Nhóm PDF (≤10)",
+    "totalAmount": "Tổng giá trị (VND)"
+  },
+  "excelMapping": {
+    "title": "Cấu trúc cột mẫu Excel chuẩn",
+    "ruleNotice": "Nguyên tắc: DATA INTO TEMPLATE – NOT TEMPLATE INTO DATA. Giữ nguyên cấu trúc, định dạng số, kiểu chữ và công thức tính tổng.",
+    "columns": [
+      { "id": "A", "name": "STT", "field": "stt" },
+      { "id": "B", "name": "Mã số thuế", "field": "tax_code" },
+      { "id": "C", "name": "Tên đơn vị phát hành", "field": "seller_name" },
+      { "id": "D", "name": "Ký hiệu mẫu số", "field": "template_symbol" },
+      { "id": "E", "name": "Ký hiệu hóa đơn", "field": "invoice_symbol" },
+      { "id": "F", "name": "Số hóa đơn/HĐ/ĐĐH", "field": "invoice_number" },
+      { "id": "G", "name": "Ngày hóa đơn", "field": "invoice_date" },
+      { "id": "H", "name": "Số tiền", "field": "invoice_amount" },
+      { "id": "I", "name": "Loại tiền", "field": "currency" },
+      { "id": "J", "name": "Mặt hàng/Mục đích", "field": "purpose" },
+      { "id": "K", "name": "Số tiền nhận nợ", "field": "debt_amount" },
+      { "id": "L", "name": "Ngày thanh toán", "field": "paid_date" },
+      { "id": "M", "name": "Số tiền đã thanh toán", "field": "paid_amount" }
+    ]
+  }
+}

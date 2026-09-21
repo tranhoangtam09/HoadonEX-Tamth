@@ -1,0 +1,6 @@
+{
+  "name": "Invoice Extractor V3",
+  "description": "Ứng dụng kết xuất và chuẩn hóa hóa đơn điện tử đa định dạng (PDF scan, XML, ảnh), đối chiếu trực quan, gộp PDF nhóm 10 và xuất Excel bảng kê GN bù đắp theo mẫu chuẩn.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
