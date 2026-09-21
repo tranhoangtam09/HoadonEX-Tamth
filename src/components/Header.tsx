@@ -59,14 +59,6 @@ export const Header: React.FC<HeaderProps> = ({
               <span>Chuẩn mẫu GN bù đắp</span>
             </button>
 
-            <button
-              onClick={onLoadSample}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-sky-600 hover:bg-sky-500 shadow-sm transition-all cursor-pointer hover:shadow-sky-500/25"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              <span>{contentData.actions.loadSample}</span>
-            </button>
-
             {hasInvoices && (
               <button
                 onClick={onClearAll}

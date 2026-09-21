@@ -1,12 +1,14 @@
 import React from 'react';
-import { CheckCheck, Layers, FileSpreadsheet, Download, RefreshCw, Loader2 } from 'lucide-react';
+import { CheckCheck, Layers, FileSpreadsheet, Trash2, Loader2, Sparkles } from 'lucide-react';
 import contentData from '../data/contentData.json';
 
 interface BatchActionsBarProps {
   invoiceCount: number;
   onReview: () => void;
+  onStandardizePurposes?: () => void;
   onMerge: () => void;
   onExportExcel: () => void;
+  onClearAll: () => void;
   isMerging: boolean;
   isExporting: boolean;
 }
@@ -14,8 +16,10 @@ interface BatchActionsBarProps {
 export const BatchActionsBar: React.FC<BatchActionsBarProps> = ({
   invoiceCount,
   onReview,
+  onStandardizePurposes,
   onMerge,
   onExportExcel,
+  onClearAll,
   isMerging,
   isExporting,
 }) => {
@@ -43,6 +47,30 @@ export const BatchActionsBar: React.FC<BatchActionsBarProps> = ({
         >
           <CheckCheck className="w-4 h-4 text-slate-600" />
           <span>{contentData.actions.reviewData}</span>
+        </button>
+
+        {/* Standardize Goods / Purpose Button */}
+        {onStandardizePurposes && (
+          <button
+            onClick={onStandardizePurposes}
+            disabled={invoiceCount === 0}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 disabled:opacity-40 transition-colors cursor-pointer"
+            title="Tự động chuẩn hóa và làm sạch toàn bộ cột Mặt hàng / Mục đích (J) theo nội dung hóa đơn và bên bán"
+          >
+            <Sparkles className="w-4 h-4 text-blue-600" />
+            <span>Chuẩn hóa mặt hàng</span>
+          </button>
+        )}
+
+        {/* Clear All Invoices Button */}
+        <button
+          onClick={onClearAll}
+          disabled={invoiceCount === 0}
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 hover:border-rose-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+          title="Xóa toàn bộ danh sách hóa đơn đang hiển thị"
+        >
+          <Trash2 className="w-4 h-4 text-rose-600" />
+          <span>Xóa danh sách</span>
         </button>
 
         {/* Merge PDF Button */}

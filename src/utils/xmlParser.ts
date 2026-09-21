@@ -1,5 +1,6 @@
 import { InvoiceItem } from '../types/invoice';
 import { cleanString, normalizeDate, parseAmountNumber, validateSingleInvoice } from './validation';
+import { isInvalidPurposeText, sanitizePurpose } from './textParser';
 
 export function parseXmlInvoice(xmlString: string, fileName: string): InvoiceItem {
   const parser = new DOMParser();
@@ -11,23 +12,15 @@ export function parseXmlInvoice(xmlString: string, fileName: string): InvoiceIte
     throw new Error(`File XML không hợp lệ: ${parserError.textContent?.slice(0, 100)}`);
   }
 
-  // Helper to find element text by tag name (case-insensitive)
-  const getTagValue = (...tagNames: string[]): string => {
+  // Helper to find text inside a container element with localName matching
+  const findInContainer = (container: Element | null, ...tagNames: string[]): string => {
+    if (!container) return '';
     for (const tag of tagNames) {
-      // Look direct and lowercase
-      const elements = xmlDoc.getElementsByTagName(tag);
-      if (elements.length > 0 && elements[0].textContent) {
-        const val = cleanString(elements[0].textContent);
-        if (val) return val;
-      }
-    }
-    // Deep search if needed
-    const allElements = xmlDoc.querySelectorAll('*');
-    for (let i = 0; i < allElements.length; i++) {
-      const el = allElements[i];
-      const localName = (el.localName || el.nodeName).toLowerCase();
-      for (const tag of tagNames) {
-        if (localName === tag.toLowerCase() && el.textContent) {
+      const children = container.querySelectorAll('*');
+      for (let i = 0; i < children.length; i++) {
+        const el = children[i];
+        const name = (el.localName || el.nodeName).toLowerCase();
+        if (name === tag.toLowerCase() && el.textContent) {
           const val = cleanString(el.textContent);
           if (val) return val;
         }
@@ -36,31 +29,213 @@ export function parseXmlInvoice(xmlString: string, fileName: string): InvoiceIte
     return '';
   };
 
-  const tax_code = getTagValue('MST', 'MaSoThue', 'TaxCode', 'MSTNBan', 'SellerTaxCode');
-  const seller_name = getTagValue('TenNNT', 'TenNguoiBan', 'SellerName', 'TenNBan', 'TenDonViBan');
-  const invoice_number = getTagValue('SHDon', 'SoHoaDon', 'InvoiceNumber', 'SoHD');
-  const invoice_symbol = getTagValue('KHHDon', 'KyHieuHoaDon', 'InvoiceSymbol', 'KyHieu');
-  const template_symbol = getTagValue('KHMSHDon', 'KyHieuMauSo', 'TemplateSymbol', 'MauSo');
-  const rawDate = getTagValue('NLap', 'NgayLap', 'InvoiceDate', 'NgayHD');
-  const invoice_date = normalizeDate(rawDate);
-  const currency = getTagValue('DVTTe', 'LoaiTien', 'Currency') || 'VND';
-  const rawAmount = getTagValue('TgTTTBSo', 'TgTT', 'TongTienThanhToan', 'TotalAmount', 'TongCong');
-  const invoice_amount = parseAmountNumber(rawAmount);
+  // Helper to query element by tag names globally (case-insensitive & namespace-safe)
+  const getGlobalTag = (...tagNames: string[]): string => {
+    const all = xmlDoc.querySelectorAll('*');
+    for (const tag of tagNames) {
+      for (let i = 0; i < all.length; i++) {
+        const el = all[i];
+        const name = (el.localName || el.nodeName).toLowerCase();
+        if (name === tag.toLowerCase() && el.textContent) {
+          const val = cleanString(el.textContent);
+          if (val) return val;
+        }
+      }
+    }
+    return '';
+  };
 
-  // Goods name / purpose
-  let purpose = getTagValue('TenHH', 'TenHangHoa', 'Description', 'DienGiai');
-  if (!purpose) {
-    // Attempt to gather item descriptions
-    const items = xmlDoc.querySelectorAll('HHDVu, Item, ChiTiet');
-    const descriptions: string[] = [];
-    items.forEach((item) => {
-      const nameEl = item.querySelector('THHDVu, TenHH, TenHangHoa, ItemName');
-      if (nameEl?.textContent) descriptions.push(cleanString(nameEl.textContent));
-    });
-    if (descriptions.length > 0) {
-      purpose = descriptions.slice(0, 3).join(', ');
+  // Find Seller Section container (<NBan>, <Seller>, <SellerInfo>, <DonViBan>, <Com>)
+  const allElements = xmlDoc.querySelectorAll('*');
+  let sellerContainer: Element | null = null;
+  for (let i = 0; i < allElements.length; i++) {
+    const name = (allElements[i].localName || allElements[i].nodeName).toLowerCase();
+    if (['nban', 'seller', 'sellerinfo', 'donviban', 'com'].includes(name)) {
+      sellerContainer = allElements[i];
+      break;
     }
   }
+
+  // 1. Mã số thuế bên bán (Tax Code)
+  let tax_code = '';
+  if (sellerContainer) {
+    tax_code = findInContainer(sellerContainer, 'MST', 'TaxCode', 'MaSoThue', 'SellerTaxCode');
+  }
+  if (!tax_code) {
+    tax_code = getGlobalTag('MSTNBan', 'SellerTaxCode', 'ComTaxCode', 'NBanMST', 'MaSoThueNBan');
+  }
+  if (!tax_code) {
+    // Fallback: search any MST that is not under NMua (Buyer)
+    for (let i = 0; i < allElements.length; i++) {
+      const el = allElements[i];
+      const name = (el.localName || el.nodeName).toLowerCase();
+      if (['mst', 'taxcode', 'masothue'].includes(name)) {
+        // Check if inside NMua / Buyer
+        const parent = el.parentElement;
+        const parentName = (parent?.localName || parent?.nodeName || '').toLowerCase();
+        if (!['nmua', 'buyer', 'customer', 'khachhang'].includes(parentName)) {
+          const val = cleanString(el.textContent);
+          if (val && /^\d{10}(-\d{3})?$/.test(val.replace(/\s+/g, ''))) {
+            tax_code = val;
+            break;
+          }
+        }
+      }
+    }
+  }
+  tax_code = tax_code.replace(/\s+/g, '');
+
+  // 2. Tên đơn vị phát hành / Đơn vị bán hàng / Người bán (Seller Name)
+  let seller_name = '';
+  if (sellerContainer) {
+    seller_name = findInContainer(sellerContainer, 'Ten', 'TenNNT', 'TenNBan', 'Name', 'SellerName', 'TenDonViBan', 'TenNguoiBan', 'TenDonViPhatHanh', 'DonViBanHang', 'NguoiBanHang', 'ComName', 'SellerLegalName', 'TenDV', 'TenDoanhNghiep');
+  }
+  if (!seller_name) {
+    seller_name = getGlobalTag('TenNBan', 'SellerLegalName', 'SellerName', 'TenDonViBan', 'ComName', 'TenNNT', 'TenNguoiBan', 'TenDonViPhatHanh', 'DonViBanHang', 'NguoiBanHang', 'TenDV', 'TenDoanhNghiep');
+  }
+  if (!seller_name) {
+    // Fallback: check elements that contain 'Công ty' or 'Doanh nghiệp' or 'Tập đoàn'
+    for (let i = 0; i < allElements.length; i++) {
+      const el = allElements[i];
+      const text = cleanString(el.textContent);
+      const name = (el.localName || el.nodeName).toLowerCase();
+      if (
+        ['ten', 'name'].includes(name) &&
+        /(?:Công\s*ty|TNHH|Cổ\s*phần|Doanh\s*nghiệp|Tập\s*đoàn|Tổng\s*công\s*ty|Chi\s*nhánh)/i.test(text)
+      ) {
+        // Make sure it's not buyer
+        const parentName = (el.parentElement?.localName || el.parentElement?.nodeName || '').toLowerCase();
+        if (!['nmua', 'buyer', 'customer'].includes(parentName)) {
+          seller_name = text;
+          break;
+        }
+      }
+    }
+  }
+
+  // 3. Ký hiệu mẫu số (Template Symbol)
+  let template_symbol = getGlobalTag(
+    'KHMSHDon',
+    'KyHieuMauSo',
+    'TemplateSymbol',
+    'MauSo',
+    'Pattern',
+    'InvTemplateCode',
+    'InvoicePattern',
+    'TemplateCode'
+  );
+
+  // 4. Ký hiệu hóa đơn (Invoice Symbol)
+  let invoice_symbol = getGlobalTag(
+    'KHHDon',
+    'KyHieuHoaDon',
+    'InvoiceSeries',
+    'Serial',
+    'KyHieu',
+    'InvoiceSymbol',
+    'SerialNo',
+    'InvoiceSerial'
+  );
+
+  // If TT78 format: invoice_symbol like 1C24TAA
+  if (invoice_symbol && !template_symbol) {
+    // Under TT78, the first character of 1C24TAA is the template number (1 = GTGT, 2 = Bán hàng...)
+    if (/^[1-6][CK][0-9]{2}[A-Z]{2,3}$/i.test(invoice_symbol)) {
+      template_symbol = invoice_symbol.charAt(0);
+    }
+  }
+
+  // 5. Số hóa đơn (Invoice Number)
+  let invoice_number = getGlobalTag(
+    'SHDon',
+    'SoHoaDon',
+    'InvoiceNo',
+    'InvoiceNumber',
+    'SoHD',
+    'InvNum',
+    'FNo',
+    'InvNo',
+    'SoHDon',
+    'So',
+    'Invoice_Number',
+    'Number',
+    'InvoiceSeriesNumber',
+    'InvoiceSeq'
+  );
+  // Pad with leading zeros to at least 7 digits if it's purely numeric
+  if (invoice_number && /^\d+$/.test(invoice_number)) {
+    if (invoice_number.length < 7) {
+      invoice_number = invoice_number.padStart(7, '0');
+    }
+  }
+
+  // 6. Ngày hóa đơn (Invoice Date)
+  const rawDate = getGlobalTag(
+    'NLap',
+    'NgayLap',
+    'InvoiceDate',
+    'IssueDate',
+    'ArisingDate',
+    'NgayHD',
+    'SignedDate'
+  );
+  const invoice_date = normalizeDate(rawDate);
+
+  // 7. Loại tiền (Currency)
+  const currency = getGlobalTag('DVTTe', 'LoaiTien', 'Currency', 'CurrencyUnit') || 'VND';
+
+  // 8. Số tiền thanh toán (Invoice Amount)
+  let rawAmount = getGlobalTag(
+    'TgTTTBSo',
+    'TongTienThanhToan',
+    'TotalAmount',
+    'TotalPaymentAmount',
+    'PaymentAmount',
+    'TotalAmountWithVAT',
+    'TgTT',
+    'Amount',
+    'TongCong'
+  );
+  let invoice_amount = parseAmountNumber(rawAmount);
+
+  // If total amount not found, attempt sum of subtotal + VAT (TgTCThue + TgTThue)
+  if (invoice_amount === '') {
+    const subTotal = parseAmountNumber(getGlobalTag('TgTCThue', 'TotalAmountWithoutVAT', 'SubTotal'));
+    const vatAmount = parseAmountNumber(getGlobalTag('TgTThue', 'TotalVATAmount', 'VATAmount'));
+    if (typeof subTotal === 'number' && typeof vatAmount === 'number') {
+      invoice_amount = subTotal + vatAmount;
+    } else if (typeof subTotal === 'number') {
+      invoice_amount = subTotal;
+    }
+  }
+
+  // 9. Tên hàng hóa / mục đích chi (Purpose) - Quét chi tiết từng dòng hàng hóa trong bảng HHDVu
+  let purpose = '';
+  const itemRows = xmlDoc.querySelectorAll('HHDVu, Item, ChiTiet, Row, HHDVuChiTiet');
+  const descriptions: string[] = [];
+
+  itemRows.forEach((row) => {
+    const nameEl = row.querySelector('THHDVu, TenHH, TenHangHoa, ItemName, Description');
+    if (nameEl?.textContent) {
+      const d = cleanString(nameEl.textContent);
+      if (d && !isInvalidPurposeText(d) && !descriptions.includes(d)) {
+        descriptions.push(d);
+      }
+    }
+  });
+
+  if (descriptions.length > 0) {
+    purpose = descriptions.slice(0, 3).join(', ');
+  } else {
+    // Nếu không có bảng dòng hàng, tìm các thẻ diễn giải hoặc ghi chú toàn cục
+    const candidateGlobal = getGlobalTag('THHDVu', 'TenHH', 'TenHangHoa', 'Description', 'DienGiai', 'GhiChu');
+    if (candidateGlobal && !isInvalidPurposeText(candidateGlobal)) {
+      purpose = candidateGlobal;
+    }
+  }
+
+  // Chuẩn hóa và làm sạch chống dính chữ "ĐƠN VỊ"
+  const finalPurpose = sanitizePurpose(purpose, seller_name, invoice_number);
 
   const confidence: Record<string, number> = {
     tax_code: tax_code ? 1.0 : 0.0,
@@ -71,7 +246,7 @@ export function parseXmlInvoice(xmlString: string, fileName: string): InvoiceIte
     invoice_date: invoice_date ? 1.0 : 0.0,
     invoice_amount: invoice_amount !== '' ? 1.0 : 0.0,
     currency: 1.0,
-    purpose: purpose ? 0.95 : 0.0,
+    purpose: finalPurpose ? 0.96 : 0.0,
     debt_amount: invoice_amount !== '' ? 1.0 : 0.0,
     paid_date: invoice_date ? 1.0 : 0.0,
     paid_amount: invoice_amount !== '' ? 1.0 : 0.0,
@@ -90,7 +265,7 @@ export function parseXmlInvoice(xmlString: string, fileName: string): InvoiceIte
     invoice_date,
     invoice_amount,
     currency,
-    purpose: purpose || 'Thanh toán theo hóa đơn số ' + (invoice_number || ''),
+    purpose: finalPurpose,
     debt_amount: invoice_amount,
     paid_date: invoice_date,
     paid_amount: invoice_amount,

@@ -26,9 +26,10 @@
     "seller_name": {
       "key": "seller_name",
       "col": "C",
-      "label": "Tên đơn vị phát hành",
-      "placeholder": "Công ty TNHH / Cổ phần...",
-      "description": "Tên doanh nghiệp hoặc tổ chức phát hành hóa đơn"
+      "label": "Tên đơn vị phát hành (Đơn vị bán hàng / người bán)",
+      "shortLabel": "Đơn vị bán / phát hành",
+      "placeholder": "Đơn vị bán hàng / người bán hàng / đơn vị phát hành...",
+      "description": "Đơn vị bán hàng / người bán hàng / đơn vị phát hành hóa đơn (bên bán)"
     },
     "template_symbol": {
       "key": "template_symbol",
@@ -137,7 +138,10 @@
     "description": "Hỗ trợ file XML hóa đơn gốc (TCT/MISA/Viettel/VNPT...), PDF văn bản & scan, JPG, PNG. Hệ thống tự động bóc tách, chuẩn hóa dữ liệu và đối soát trùng lặp.",
     "dropText": "Kéo thả hóa đơn vào đây hoặc bấm để chọn tệp",
     "fileSupport": "PDF, XML, JPG, JPEG, PNG • Tối đa 1.000 file mỗi phiên",
-    "batchGuide": "Gợi ý: Tải cùng lúc nhiều hóa đơn để hệ thống tự động gom nhóm 10 file/PDF và tạo bảng kê hoàn chỉnh."
+    "batchGuide": "Gợi ý: Tải cùng lúc nhiều hóa đơn để hệ thống tự động gom nhóm 10 file/PDF và tạo bảng kê hoàn chỉnh.",
+    "turboModeBadge": "⚡ Chế độ Tải Siêu Tốc (6 Luồng Song Song)",
+    "turboModeDesc": "Xử lý tức thì file XML, đa luồng song song PDF & ảnh giúp tăng tốc độ tải gấp 5-10 lần",
+    "fastModeActive": "Đang kích hoạt tăng tốc phần cứng & đa luồng"
   },
   "stats": {
     "totalInvoices": "Tổng hóa đơn",
@@ -153,7 +157,7 @@
     "columns": [
       { "id": "A", "name": "STT", "field": "stt" },
       { "id": "B", "name": "Mã số thuế", "field": "tax_code" },
-      { "id": "C", "name": "Tên đơn vị phát hành", "field": "seller_name" },
+      { "id": "C", "name": "Tên đơn vị phát hành (Đơn vị bán hàng/người bán)", "field": "seller_name" },
       { "id": "D", "name": "Ký hiệu mẫu số", "field": "template_symbol" },
       { "id": "E", "name": "Ký hiệu hóa đơn", "field": "invoice_symbol" },
       { "id": "F", "name": "Số hóa đơn/HĐ/ĐĐH", "field": "invoice_number" },

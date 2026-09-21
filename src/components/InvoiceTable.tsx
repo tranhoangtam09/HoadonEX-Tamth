@@ -2,12 +2,14 @@ import React, { useState } from 'react';
 import { Search, AlertTriangle, XCircle, CheckCircle, Eye, Trash2, Copy, Filter } from 'lucide-react';
 import { InvoiceItem } from '../types/invoice';
 import { formatNumberVN, getConfidenceBadge } from '../utils/validation';
+import { sanitizePurpose } from '../utils/textParser';
 
 interface InvoiceTableProps {
   invoices: InvoiceItem[];
   selectedIndex: number;
   onSelectInvoice: (index: number) => void;
   onDeleteInvoice: (index: number) => void;
+  onClearAll?: () => void;
 }
 
 export const InvoiceTable: React.FC<InvoiceTableProps> = ({
@@ -15,6 +17,7 @@ export const InvoiceTable: React.FC<InvoiceTableProps> = ({
   selectedIndex,
   onSelectInvoice,
   onDeleteInvoice,
+  onClearAll,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'valid' | 'warning' | 'duplicate'>('all');
@@ -112,6 +115,17 @@ export const InvoiceTable: React.FC<InvoiceTableProps> = ({
           >
             Trùng lặp
           </button>
+
+          {onClearAll && invoices.length > 0 && (
+            <button
+              onClick={onClearAll}
+              className="ml-auto inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors cursor-pointer"
+              title="Xóa toàn bộ danh sách hóa đơn đang hiển thị"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+              <span>Xóa tất cả</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -122,14 +136,18 @@ export const InvoiceTable: React.FC<InvoiceTableProps> = ({
             <tr>
               <th className="py-2.5 px-3 font-semibold text-center w-12 border-b border-blue-900">STT</th>
               <th className="py-2.5 px-3 font-semibold border-b border-blue-900">Mã số thuế</th>
-              <th className="py-2.5 px-3 font-semibold border-b border-blue-900 min-w-[180px]">
-                Tên đơn vị phát hành
+              <th className="py-2.5 px-3 font-semibold border-b border-blue-900 min-w-[200px]" title="Đơn vị bán hàng / người bán hàng / đơn vị phát hành hóa đơn">
+                <div>Tên đơn vị phát hành</div>
+                <div className="text-[10px] text-blue-200/90 font-normal leading-tight">Đơn vị bán / người bán</div>
               </th>
               <th className="py-2.5 px-3 font-semibold text-center border-b border-blue-900">Ký hiệu</th>
               <th className="py-2.5 px-3 font-semibold text-center border-b border-blue-900">Số HĐ</th>
               <th className="py-2.5 px-3 font-semibold text-center border-b border-blue-900">Ngày</th>
               <th className="py-2.5 px-3 font-semibold text-right border-b border-blue-900 min-w-[110px]">
                 Số tiền (VND)
+              </th>
+              <th className="py-2.5 px-3 font-semibold border-b border-blue-900 min-w-[170px] max-w-[230px]" title="Mặt hàng / Mục đích chi tiêu (Cột J khi xuất Excel)">
+                Mặt hàng / Mục đích (J)
               </th>
               <th className="py-2.5 px-3 font-semibold text-center border-b border-blue-900">Nguồn</th>
               <th className="py-2.5 px-3 font-semibold text-center border-b border-blue-900">Tin cậy</th>
@@ -140,8 +158,17 @@ export const InvoiceTable: React.FC<InvoiceTableProps> = ({
           <tbody className="divide-y divide-slate-200">
             {filteredInvoices.length === 0 ? (
               <tr>
-                <td colSpan={11} className="py-12 text-center text-slate-400">
-                  Không tìm thấy hóa đơn phù hợp
+                <td colSpan={12} className="py-16 text-center text-slate-500">
+                  <div className="flex flex-col items-center justify-center gap-1.5">
+                    <p className="text-sm font-semibold text-slate-700">
+                      {invoices.length === 0 ? 'Chưa có hóa đơn nào trong bảng kê' : 'Không tìm thấy hóa đơn phù hợp bộ lọc'}
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      {invoices.length === 0
+                        ? 'Hãy kéo thả hoặc chọn tệp hóa đơn (PDF, XML, JPG, PNG) ở khung phía trên để bắt đầu trích xuất'
+                        : 'Thử tìm kiếm với từ khóa khác hoặc chuyển trạng thái hiển thị về "Tất cả"'}
+                    </p>
+                  </div>
                 </td>
               </tr>
             ) : (
@@ -198,6 +225,13 @@ export const InvoiceTable: React.FC<InvoiceTableProps> = ({
                     {/* Amount */}
                     <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
                       {inv.invoice_amount !== '' ? formatNumberVN(inv.invoice_amount) : '-'}
+                    </td>
+
+                    {/* Purpose / Goods (Column J) */}
+                    <td className="py-2.5 px-3 max-w-[210px]" title={sanitizePurpose(inv.purpose, inv.seller_name, inv.invoice_number)}>
+                      <div className="line-clamp-1 text-[11px] font-medium text-slate-800 bg-slate-100/90 px-2 py-0.5 rounded border border-slate-200">
+                        {sanitizePurpose(inv.purpose, inv.seller_name, inv.invoice_number)}
+                      </div>
                     </td>
 
                     {/* Source */}

@@ -7,20 +7,19 @@ import { InvoiceTable } from './components/InvoiceTable';
 import { InvoiceInspector } from './components/InvoiceInspector';
 import { PdfMergeModal } from './components/PdfMergeModal';
 import { TemplateInfoModal } from './components/TemplateInfoModal';
+import { ConfirmClearModal } from './components/ConfirmClearModal';
 import { InvoiceItem } from './types/invoice';
 import { SAMPLE_INVOICES } from './data/sampleInvoices';
 import contentData from './data/contentData.json';
 import { reviewAllInvoices } from './utils/validation';
 import { exportInvoicesToExcel } from './utils/excelExporter';
 import { mergeInvoicesToPdfGroups, MergedPdfResult } from './utils/pdfMerger';
+import { sanitizePurpose } from './utils/textParser';
 import { AlertCircle, CheckCircle2, Info } from 'lucide-react';
 
 export default function App() {
-  const [invoices, setInvoices] = useState<InvoiceItem[]>(() => {
-    const { reviewedItems } = reviewAllInvoices(SAMPLE_INVOICES);
-    return reviewedItems;
-  });
-  const [selectedIndex, setSelectedIndex] = useState<number>(0);
+  const [invoices, setInvoices] = useState<InvoiceItem[]>([]);
+  const [selectedIndex, setSelectedIndex] = useState<number>(-1);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [isMerging, setIsMerging] = useState<boolean>(false);
   const [isExporting, setIsExporting] = useState<boolean>(false);
@@ -28,6 +27,7 @@ export default function App() {
   const [pdfGroups, setPdfGroups] = useState<MergedPdfResult[]>([]);
   const [isPdfModalOpen, setIsPdfModalOpen] = useState<boolean>(false);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState<boolean>(false);
+  const [isConfirmClearOpen, setIsConfirmClearOpen] = useState<boolean>(false);
 
   const [toastMessage, setToastMessage] = useState<{
     text: string;
@@ -79,30 +79,57 @@ export default function App() {
 
   // Load sample invoices
   const handleLoadSample = () => {
+    if (SAMPLE_INVOICES.length === 0) {
+      showToast('Dữ liệu hóa đơn mẫu đã được gỡ bỏ khỏi hệ thống. Vui lòng tải lên hóa đơn thực tế của bạn.', 'info');
+      return;
+    }
     const { reviewedItems } = reviewAllInvoices(SAMPLE_INVOICES);
     setInvoices(reviewedItems);
     setSelectedIndex(0);
-    showToast(`Đã nạp thành công 12 hóa đơn mẫu thực tế (Viettel, Petrolimex, Vinamilk, FPT...)`, 'success');
   };
 
-  // Clear all invoices
-  const handleClearAll = () => {
-    if (window.confirm('Bạn có chắc chắn muốn xóa toàn bộ danh sách hóa đơn hiện tại?')) {
-      setInvoices([]);
-      setSelectedIndex(-1);
-      showToast('Đã xóa sạch danh sách hóa đơn', 'info');
+  // Trigger modal to confirm clear all invoices
+  const handleOpenClearModal = () => {
+    if (invoices.length === 0) {
+      showToast('Danh sách hóa đơn hiện đang trống', 'info');
+      return;
     }
+    setIsConfirmClearOpen(true);
+  };
+
+  // Confirmed clearing of invoices
+  const handleConfirmClearAll = () => {
+    setInvoices([]);
+    setSelectedIndex(-1);
+    setIsConfirmClearOpen(false);
+    showToast('Đã xóa toàn bộ danh sách hóa đơn đang hiển thị', 'info');
   };
 
   // Add newly extracted invoices
   const handleInvoicesExtracted = (newItems: InvoiceItem[]) => {
-    const combined = [...invoices, ...newItems];
+    const cleanedNewItems = newItems.map((item) => ({
+      ...item,
+      purpose: sanitizePurpose(item.purpose, item.seller_name, item.invoice_number),
+    }));
+    const combined = [...invoices, ...cleanedNewItems];
     const { reviewedItems } = reviewAllInvoices(combined);
     setInvoices(reviewedItems);
     if (selectedIndex === -1 && reviewedItems.length > 0) {
       setSelectedIndex(0);
     }
     showToast(`Đã xử lý và kết xuất ${newItems.length} hóa đơn mới`, 'success');
+  };
+
+  // Standardize goods & purpose for all invoices
+  const handleStandardizePurposes = () => {
+    if (invoices.length === 0) return;
+    const updated = invoices.map((inv) => ({
+      ...inv,
+      purpose: sanitizePurpose(inv.purpose, inv.seller_name, inv.invoice_number),
+    }));
+    const { reviewedItems } = reviewAllInvoices(updated);
+    setInvoices(reviewedItems);
+    showToast('Đã chuẩn hóa và làm sạch thông tin Mặt hàng / Mục đích cho tất cả hóa đơn', 'success');
   };
 
   // Select invoice row
@@ -215,7 +242,7 @@ export default function App() {
       {/* Main App Header */}
       <Header
         onLoadSample={handleLoadSample}
-        onClearAll={handleClearAll}
+        onClearAll={handleOpenClearModal}
         hasInvoices={invoices.length > 0}
         onOpenTemplateInfo={() => setIsTemplateModalOpen(true)}
       />
@@ -262,8 +289,10 @@ export default function App() {
         <BatchActionsBar
           invoiceCount={invoices.length}
           onReview={handleReviewData}
+          onStandardizePurposes={handleStandardizePurposes}
           onMerge={handleMergePdf}
           onExportExcel={handleExportExcel}
+          onClearAll={handleOpenClearModal}
           isMerging={isMerging}
           isExporting={isExporting}
         />
@@ -274,6 +303,7 @@ export default function App() {
           selectedIndex={selectedIndex}
           onSelectInvoice={handleSelectInvoice}
           onDeleteInvoice={handleDeleteInvoice}
+          onClearAll={handleOpenClearModal}
         />
 
         {/* Side-by-side Inspection & Editing Workspace */}
@@ -316,6 +346,14 @@ export default function App() {
       <TemplateInfoModal
         isOpen={isTemplateModalOpen}
         onClose={() => setIsTemplateModalOpen(false)}
+      />
+
+      {/* Confirm Clear Invoices Modal */}
+      <ConfirmClearModal
+        isOpen={isConfirmClearOpen}
+        onClose={() => setIsConfirmClearOpen(false)}
+        onConfirm={handleConfirmClearAll}
+        invoiceCount={invoices.length}
       />
 
       {/* App Footer */}

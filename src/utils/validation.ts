@@ -5,7 +5,22 @@ export function cleanString(s: unknown): string {
 }
 
 export function normalizeDate(val: unknown): string {
-  const s = cleanString(val).replace(/[-.]/g, '/');
+  if (!val) return '';
+  const raw = cleanString(val);
+
+  // Match: Ngày 15 tháng 03 năm 2024 or Ngày 15 Tháng 3 Năm 2024
+  const vnTextMatch = raw.match(/ngày\s*(\d{1,2})\s*tháng\s*(\d{1,2})\s*năm\s*(\d{4})/i);
+  if (vnTextMatch) {
+    const day = String(parseInt(vnTextMatch[1], 10)).padStart(2, '0');
+    const month = String(parseInt(vnTextMatch[2], 10)).padStart(2, '0');
+    const year = vnTextMatch[3];
+    return `${day}/${month}/${year}`;
+  }
+
+  // Strip timestamps like T14:30:00 or 14:30:00
+  const dateOnly = raw.replace(/[T\s].*$/, '');
+  const s = dateOnly.replace(/[-.]/g, '/');
+
   // Match yyyy/mm/dd
   const ymd = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})/);
   if (ymd) {
@@ -14,6 +29,7 @@ export function normalizeDate(val: unknown): string {
     const year = ymd[1];
     return `${day}/${month}/${year}`;
   }
+
   // Match dd/mm/yyyy or d/m/yyyy
   const dmy = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
   if (dmy) {
@@ -22,7 +38,14 @@ export function normalizeDate(val: unknown): string {
     const year = dmy[3];
     return `${day}/${month}/${year}`;
   }
-  return s;
+
+  // If there's any 8 digit like 20240315 or 15032024
+  const eightDigits = raw.match(/\b(202\d)(0[1-9]|1[0-2])([0-2]\d|3[01])\b/);
+  if (eightDigits) {
+    return `${eightDigits[3]}/${eightDigits[2]}/${eightDigits[1]}`;
+  }
+
+  return raw;
 }
 
 export function parseAmountNumber(val: unknown): number | '' {

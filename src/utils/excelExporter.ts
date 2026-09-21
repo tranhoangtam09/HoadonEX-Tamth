@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs';
 import { InvoiceItem } from '../types/invoice';
 import { parseAmountNumber } from './validation';
+import { sanitizePurpose } from './textParser';
 
 export interface ExcelExportResult {
   filename: string;
@@ -114,7 +115,7 @@ export async function exportInvoicesToExcel(
       item.invoice_date || '', // G: Ngày HĐ
       numAmount !== '' ? numAmount : 0, // H: Số tiền
       item.currency || 'VND', // I: Loại tiền
-      item.purpose || '', // J: Mục đích
+      sanitizePurpose(item.purpose, item.seller_name, item.invoice_number), // J: Mặt hàng / Mục đích chi tiêu
       numDebt !== '' ? numDebt : 0, // K: Số tiền nhận nợ
       item.paid_date || item.invoice_date || '', // L: Ngày thanh toán
       numPaid !== '' ? numPaid : 0, // M: Số tiền đã thanh toán

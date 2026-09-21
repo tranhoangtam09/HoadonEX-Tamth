@@ -10,10 +10,14 @@ import {
   Copy,
   ExternalLink,
   Info,
+  Search,
+  Loader2,
+  Sparkles,
 } from 'lucide-react';
 import { InvoiceItem, InvoiceFieldKey } from '../types/invoice';
 import contentData from '../data/contentData.json';
 import { getConfidenceBadge, parseAmountNumber } from '../utils/validation';
+import { detectSmartPurposeFromSeller } from '../utils/textParser';
 
 interface InvoiceInspectorProps {
   invoice: InvoiceItem | null;
@@ -34,11 +38,14 @@ export const InvoiceInspector: React.FC<InvoiceInspectorProps> = ({
 }) => {
   const [formData, setFormData] = useState<Partial<InvoiceItem>>({});
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [isLookingUpTax, setIsLookingUpTax] = useState(false);
+  const [taxLookupMessage, setTaxLookupMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (invoice) {
       setFormData({ ...invoice });
       setSaveSuccess(false);
+      setTaxLookupMessage(null);
     }
   }, [invoice]);
 
@@ -73,6 +80,35 @@ export const InvoiceInspector: React.FC<InvoiceInspectorProps> = ({
     }));
   };
 
+  const handleLookupTax = async () => {
+    const rawTax = String(formData.tax_code || '').replace(/[^0-9-]/g, '').trim();
+    if (!rawTax || rawTax.length < 10) {
+      setTaxLookupMessage('Vui lòng kiểm tra lại Mã số thuế bên bán (10 hoặc 14 số)');
+      setTimeout(() => setTaxLookupMessage(null), 3500);
+      return;
+    }
+    setIsLookingUpTax(true);
+    setTaxLookupMessage(null);
+    try {
+      const resp = await fetch(`/api/lookup-tax-code/${rawTax}`);
+      const data = await resp.json();
+      if (data.success && data.companyName) {
+        setFormData((prev) => ({
+          ...prev,
+          seller_name: data.companyName,
+        }));
+        setTaxLookupMessage(`✓ Đã tra cứu chính xác: ${data.companyName}`);
+      } else {
+        setTaxLookupMessage('Chưa tìm thấy dữ liệu đăng ký kinh doanh cho MST này');
+      }
+    } catch {
+      setTaxLookupMessage('Không thể kết nối đến cổng tra cứu doanh nghiệp');
+    } finally {
+      setIsLookingUpTax(false);
+      setTimeout(() => setTaxLookupMessage(null), 5000);
+    }
+  };
+
   const handleSave = () => {
     if (!invoice) return;
     const updated: InvoiceItem = {
@@ -87,7 +123,7 @@ export const InvoiceInspector: React.FC<InvoiceInspectorProps> = ({
 
   const fieldsConfig: Array<{ key: Exclude<InvoiceFieldKey, 'stt'>; label: string; placeholder: string; colSpan?: string }> = [
     { key: 'tax_code', label: 'Mã số thuế bên bán (B)', placeholder: '0100109106' },
-    { key: 'seller_name', label: 'Tên đơn vị phát hành (C)', placeholder: 'Công ty Cổ phần / TNHH...' },
+    { key: 'seller_name', label: 'Tên ĐV phát hành / Đơn vị bán hàng (C)', placeholder: 'Đơn vị bán hàng / người bán / đơn vị phát hành...' },
     { key: 'template_symbol', label: 'Ký hiệu mẫu số (D)', placeholder: '1/001' },
     { key: 'invoice_symbol', label: 'Ký hiệu hóa đơn (E)', placeholder: '1C24TYY' },
     { key: 'invoice_number', label: 'Số hóa đơn (F)', placeholder: '0012345' },
@@ -274,9 +310,37 @@ export const InvoiceInspector: React.FC<InvoiceInspectorProps> = ({
                 return (
                   <div key={key} className={`flex flex-col ${colSpan || ''}`}>
                     <div className="flex items-center justify-between mb-1">
-                      <label className="text-[11px] font-semibold text-slate-700">
-                        {label}
-                      </label>
+                      <div className="flex items-center gap-2">
+                        <label className="text-[11px] font-semibold text-slate-700">
+                          {label}
+                        </label>
+                        {key === 'seller_name' && (
+                          <button
+                            type="button"
+                            onClick={handleLookupTax}
+                            disabled={isLookingUpTax || !formData.tax_code}
+                            className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-700 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded border border-blue-200 transition-colors disabled:opacity-40 cursor-pointer"
+                            title="Tra cứu tên đăng ký kinh doanh chính thức từ Tổng cục Thuế theo MST bên bán"
+                          >
+                            {isLookingUpTax ? <Loader2 className="w-3 h-3 animate-spin" /> : <Search className="w-3 h-3" />}
+                            <span>Tra cứu tên theo MST</span>
+                          </button>
+                        )}
+                        {key === 'purpose' && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const smart = detectSmartPurposeFromSeller(formData.seller_name, formData.invoice_number);
+                              handleChange('purpose', smart);
+                            }}
+                            className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-700 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded border border-blue-200 transition-colors cursor-pointer"
+                            title="Tự động suy luận mặt hàng / mục đích dựa trên ngành nghề của bên bán"
+                          >
+                            <Sparkles className="w-3 h-3 text-blue-600" />
+                            <span>Gợi ý theo ĐV bán</span>
+                          </button>
+                        )}
+                      </div>
                       <span
                         className={`text-[10px] px-1.5 py-0.2 rounded-full border ${badge.badgeClass}`}
                         title={`Độ tin cậy OCR: ${badge.badgeText}`}
@@ -291,6 +355,35 @@ export const InvoiceInspector: React.FC<InvoiceInspectorProps> = ({
                       onChange={(e) => handleChange(key, e.target.value)}
                       className="px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-900 font-medium transition-all"
                     />
+                    {key === 'purpose' && (
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                        <span className="text-[10px] text-slate-500 font-medium">Gợi ý nhanh:</span>
+                        {[
+                          'Xăng dầu, nhiên liệu',
+                          'Cước viễn thông, Internet',
+                          'Tiền điện sinh hoạt',
+                          'Tiền nước',
+                          'Tiếp khách, ăn uống',
+                          'Vé máy bay',
+                          'Văn phòng phẩm',
+                          'Thiết bị máy tính',
+                        ].map((tag) => (
+                          <button
+                            key={tag}
+                            type="button"
+                            onClick={() => handleChange('purpose', tag)}
+                            className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-600 border border-slate-200 transition-colors cursor-pointer"
+                          >
+                            + {tag}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {key === 'seller_name' && taxLookupMessage && (
+                      <p className={`text-[11px] font-medium mt-1 ${taxLookupMessage.startsWith('✓') ? 'text-emerald-700' : 'text-amber-700'}`}>
+                        {taxLookupMessage}
+                      </p>
+                    )}
                   </div>
                 );
               })}
