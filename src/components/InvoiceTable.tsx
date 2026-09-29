@@ -1,5 +1,18 @@
 import React, { useState } from 'react';
-import { Search, AlertTriangle, XCircle, CheckCircle, Eye, Trash2, Copy, Filter } from 'lucide-react';
+import {
+  Search,
+  AlertTriangle,
+  XCircle,
+  CheckCircle,
+  Eye,
+  Trash2,
+  Copy,
+  Filter,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Calendar,
+} from 'lucide-react';
 import { InvoiceItem } from '../types/invoice';
 import { formatNumberVN, getConfidenceBadge } from '../utils/validation';
 import { sanitizePurpose } from '../utils/textParser';
@@ -10,6 +23,8 @@ interface InvoiceTableProps {
   onSelectInvoice: (index: number) => void;
   onDeleteInvoice: (index: number) => void;
   onClearAll?: () => void;
+  onSortByDate?: () => void;
+  dateSortOrder?: 'asc' | 'desc' | null;
 }
 
 export const InvoiceTable: React.FC<InvoiceTableProps> = ({
@@ -18,6 +33,8 @@ export const InvoiceTable: React.FC<InvoiceTableProps> = ({
   onSelectInvoice,
   onDeleteInvoice,
   onClearAll,
+  onSortByDate,
+  dateSortOrder,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'valid' | 'warning' | 'duplicate'>('all');
@@ -39,7 +56,8 @@ export const InvoiceTable: React.FC<InvoiceTableProps> = ({
           inv.seller_name?.toLowerCase().includes(q) ||
           inv.invoice_number?.toLowerCase().includes(q) ||
           inv.invoice_symbol?.toLowerCase().includes(q) ||
-          inv.source_file?.toLowerCase().includes(q);
+          inv.source_file?.toLowerCase().includes(q) ||
+          inv.purpose?.toLowerCase().includes(q);
         if (!match) return false;
       }
 
@@ -64,7 +82,7 @@ export const InvoiceTable: React.FC<InvoiceTableProps> = ({
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Tìm theo MST, tên đơn vị, số HĐ..."
+            placeholder="Tìm theo MST, tên đơn vị, số HĐ, mặt hàng..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-3 py-1.5 text-xs sm:text-sm bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
@@ -142,7 +160,25 @@ export const InvoiceTable: React.FC<InvoiceTableProps> = ({
               </th>
               <th className="py-2.5 px-3 font-semibold text-center border-b border-blue-900">Ký hiệu</th>
               <th className="py-2.5 px-3 font-semibold text-center border-b border-blue-900">Số HĐ</th>
-              <th className="py-2.5 px-3 font-semibold text-center border-b border-blue-900">Ngày</th>
+              
+              {/* Clickable Header for Invoice Date Sorting */}
+              <th
+                onClick={onSortByDate}
+                className="py-2.5 px-3 font-semibold text-center border-b border-blue-900 cursor-pointer hover:bg-blue-950 transition-colors select-none group"
+                title="Bấm để sắp xếp theo thứ tự ngày trên hóa đơn (cũ đến mới hoặc mới đến cũ)"
+              >
+                <div className="inline-flex items-center justify-center gap-1">
+                  <span>Ngày HĐ</span>
+                  {dateSortOrder === 'asc' ? (
+                    <ArrowUp className="w-3.5 h-3.5 text-sky-300 font-bold" />
+                  ) : dateSortOrder === 'desc' ? (
+                    <ArrowDown className="w-3.5 h-3.5 text-sky-300 font-bold" />
+                  ) : (
+                    <ArrowUpDown className="w-3 h-3 text-blue-300/70 group-hover:text-white transition-colors" />
+                  )}
+                </div>
+              </th>
+
               <th className="py-2.5 px-3 font-semibold text-right border-b border-blue-900 min-w-[110px]">
                 Số tiền (VND)
               </th>
@@ -218,7 +254,7 @@ export const InvoiceTable: React.FC<InvoiceTableProps> = ({
                     </td>
 
                     {/* Date */}
-                    <td className="py-2.5 px-3 text-center font-mono text-slate-600">
+                    <td className="py-2.5 px-3 text-center font-mono text-slate-700 font-medium">
                       {inv.invoice_date || '-'}
                     </td>
 
@@ -249,36 +285,31 @@ export const InvoiceTable: React.FC<InvoiceTableProps> = ({
                       </span>
                     </td>
 
-                    {/* Confidence */}
+                    {/* Confidence Badge */}
                     <td className="py-2.5 px-3 text-center">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] ${badge.badgeClass}`}
-                      >
-                        <span className={`w-1.5 h-1.5 rounded-full ${badge.dotColor}`}></span>
-                        {badge.badgeText}
+                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] ${badge.badgeClass}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${badge.dotColor}`} />
+                        <span>{badge.badgeText}</span>
                       </span>
                     </td>
 
-                    {/* Verification Status */}
+                    {/* Validation */}
                     <td className="py-2.5 px-3 text-center">
-                      {hasErrors ? (
-                        <span className="inline-flex items-center gap-1 text-rose-600 font-semibold" title={inv.validation.errors.join(', ')}>
-                          <XCircle className="w-3.5 h-3.5" /> Lỗi
-                        </span>
-                      ) : isDup ? (
-                        <span
-                          className="inline-flex items-center gap-1 text-rose-700 bg-rose-100 px-1.5 py-0.5 rounded font-bold"
-                          title={`Trùng với HĐ STT: ${(inv.validation.duplicateWith || []).map((x) => x + 1).join(', ')}`}
-                        >
+                      {isDup ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-700 bg-rose-100 px-1.5 py-0.5 rounded" title="Trùng lặp với hóa đơn khác">
                           <Copy className="w-3 h-3" /> Trùng
                         </span>
+                      ) : hasErrors ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded" title={inv.validation.errors.join('; ')}>
+                          <XCircle className="w-3 h-3 text-rose-600" /> Lỗi
+                        </span>
                       ) : hasWarnings ? (
-                        <span className="inline-flex items-center gap-1 text-amber-600 font-semibold" title={inv.validation.warnings.join(', ')}>
-                          <AlertTriangle className="w-3.5 h-3.5" /> Cảnh báo
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded" title={inv.validation.warnings.join('; ')}>
+                          <AlertTriangle className="w-3 h-3 text-amber-600" /> Lưu ý
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 text-emerald-600 font-semibold">
-                          <CheckCircle className="w-3.5 h-3.5" /> Chuẩn
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                          <CheckCircle className="w-3 h-3 text-emerald-600" /> Chuẩn
                         </span>
                       )}
                     </td>
@@ -288,15 +319,15 @@ export const InvoiceTable: React.FC<InvoiceTableProps> = ({
                       <div className="flex items-center justify-center gap-1">
                         <button
                           onClick={() => onSelectInvoice(originalIndex)}
-                          title="Đối chiếu & Chỉnh sửa"
-                          className="p-1 rounded text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                          className="p-1 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                          title="Xem chi tiết và chỉnh sửa"
                         >
                           <Eye className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => onDeleteInvoice(originalIndex)}
-                          title="Xóa hóa đơn"
                           className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                          title="Xóa hóa đơn này"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>

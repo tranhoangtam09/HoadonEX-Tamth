@@ -1,5 +1,6 @@
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { InvoiceItem } from '../types/invoice';
+import { sortInvoicesByDate } from './validation';
 
 export interface MergedPdfResult {
   groupIndex: number;
@@ -13,9 +14,12 @@ export async function mergeInvoicesToPdfGroups(
   items: InvoiceItem[],
   maxPerGroup = 10
 ): Promise<MergedPdfResult[]> {
+  // Sắp xếp hóa đơn theo đúng thứ tự ngày trên hóa đơn để đồng bộ với Excel
+  const sortedItems = sortInvoicesByDate(items, 'asc');
+
   const groups: InvoiceItem[][] = [];
-  for (let i = 0; i < items.length; i += maxPerGroup) {
-    groups.push(items.slice(i, i + maxPerGroup));
+  for (let i = 0; i < sortedItems.length; i += maxPerGroup) {
+    groups.push(sortedItems.slice(i, i + maxPerGroup));
   }
 
   const results: MergedPdfResult[] = [];
@@ -50,7 +54,7 @@ export async function mergeInvoicesToPdfGroups(
       color: rgb(1, 1, 1),
     });
 
-    coverPage.drawText(`So luong hoa don: ${groupItems.length} hoa don (Toi da 10 HD/nhom)`, {
+    coverPage.drawText(`So luong hoa don: ${groupItems.length} hoa don (Toi da 10 HD/nhom theo thu tu ngay)`, {
       x: 40,
       y: height - 90,
       size: 11,
@@ -60,7 +64,7 @@ export async function mergeInvoicesToPdfGroups(
 
     // Draw table of contents on cover page
     let yPos = height - 160;
-    coverPage.drawText('DANH SACH HOA DON TRONG TAP:', {
+    coverPage.drawText('DANH SACH HOA DON TRONG TAP (SAP XEP THEO NGAY):', {
       x: 40,
       y: yPos,
       size: 12,
@@ -86,7 +90,7 @@ export async function mergeInvoicesToPdfGroups(
     });
 
     groupItems.forEach((it, idx) => {
-      coverPage.drawText(String(idx + 1), { x: 40, y: yPos - 10, size: 9, font });
+      coverPage.drawText(String(gIdx * maxPerGroup + idx + 1), { x: 40, y: yPos - 10, size: 9, font });
       coverPage.drawText(String(it.tax_code || '-').slice(0, 14), { x: 75, y: yPos - 10, size: 9, font });
       coverPage.drawText(String(it.invoice_number || '-').slice(0, 12), { x: 170, y: yPos - 10, size: 9, font });
       coverPage.drawText(String(it.invoice_date || '-'), { x: 250, y: yPos - 10, size: 9, font });
@@ -98,126 +102,42 @@ export async function mergeInvoicesToPdfGroups(
       yPos -= 24;
     });
 
-    // Now append each invoice page
-    for (const item of groupItems) {
-      let appended = false;
-      if (item.file_blob && item.mime_type?.includes('pdf')) {
-        try {
-          const arrayBuffer = await item.file_blob.arrayBuffer();
-          const sourcePdf = await PDFDocument.load(arrayBuffer);
-          const copiedPages = await mergedDoc.copyPages(sourcePdf, sourcePdf.getPageIndices());
+    // Append pages from files if available
+    for (const it of groupItems) {
+      try {
+        if (it.file_blob && it.mime_type?.includes('pdf')) {
+          const arrayBuffer = await it.file_blob.arrayBuffer();
+          const subDoc = await PDFDocument.load(arrayBuffer);
+          const copiedPages = await mergedDoc.copyPages(subDoc, subDoc.getPageIndices());
           copiedPages.forEach((page) => mergedDoc.addPage(page));
-          appended = true;
-        } catch {
-          appended = false;
-        }
-      } else if (item.file_blob && item.mime_type?.startsWith('image/')) {
-        try {
-          const arrayBuffer = await item.file_blob.arrayBuffer();
-          let imgEmbed;
-          if (item.mime_type.includes('png')) {
-            imgEmbed = await mergedDoc.embedPng(arrayBuffer);
+        } else if (it.file_blob && it.mime_type?.startsWith('image/')) {
+          const arrayBuffer = await it.file_blob.arrayBuffer();
+          let embeddedImg;
+          if (it.mime_type.includes('png')) {
+            embeddedImg = await mergedDoc.embedPng(arrayBuffer);
           } else {
-            imgEmbed = await mergedDoc.embedJpg(arrayBuffer);
+            embeddedImg = await mergedDoc.embedJpg(arrayBuffer);
           }
-
-          const imgPage = mergedDoc.addPage([595.28, 841.89]);
-          const pW = imgPage.getWidth() - 60;
-          const pH = imgPage.getHeight() - 80;
-          const imgDims = imgEmbed.scaleToFit(pW, pH);
-
-          imgPage.drawText(`Hoa don so: ${item.invoice_number || '-'} • MST: ${item.tax_code || '-'}`, {
-            x: 30,
-            y: imgPage.getHeight() - 30,
-            size: 10,
-            font: fontBold,
-            color: rgb(0.2, 0.2, 0.3),
-          });
-
-          imgPage.drawImage(imgEmbed, {
-            x: 30,
-            y: imgPage.getHeight() - 50 - imgDims.height,
+          const page = mergedDoc.addPage([595.28, 841.89]);
+          const imgDims = embeddedImg.scaleToFit(500, 750);
+          page.drawImage(embeddedImg, {
+            x: 50,
+            y: 841.89 - 50 - imgDims.height,
             width: imgDims.width,
             height: imgDims.height,
           });
-          appended = true;
-        } catch {
-          appended = false;
         }
-      }
-
-      // If XML or fallback text, generate a clean summary invoice page
-      if (!appended) {
-        const docPage = mergedDoc.addPage([595.28, 841.89]);
-        const pHeight = docPage.getHeight();
-
-        docPage.drawRectangle({
-          x: 30,
-          y: pHeight - 750,
-          width: 535,
-          height: 720,
-          borderColor: rgb(0.8, 0.85, 0.9),
-          borderWidth: 1,
-          color: rgb(0.98, 0.99, 1),
-        });
-
-        docPage.drawText('CHUNG TU HOA DON DIEN TU', {
-          x: 50,
-          y: pHeight - 70,
-          size: 14,
-          font: fontBold,
-          color: rgb(0.06, 0.21, 0.40),
-        });
-
-        docPage.drawText(`Nguon du lieu: ${item.source_type} • File goc: ${item.source_file}`, {
-          x: 50,
-          y: pHeight - 90,
-          size: 9,
-          font,
-          color: rgb(0.4, 0.45, 0.5),
-        });
-
-        let curY = pHeight - 130;
-        const details = [
-          ['Don vi phat hanh:', item.seller_name || '-'],
-          ['Ma so thue (MST):', item.tax_code || '-'],
-          ['Ky hieu mau so:', item.template_symbol || '-'],
-          ['Ky hieu hoa don:', item.invoice_symbol || '-'],
-          ['So hoa don:', item.invoice_number || '-'],
-          ['Ngay lap hoa don:', item.invoice_date || '-'],
-          ['Tong tien thanh toan:', `${Number(item.invoice_amount || 0).toLocaleString('en-US')} ${item.currency || 'VND'}`],
-          ['Mat hang / Muc dich:', item.purpose || '-'],
-          ['So tien nhan no:', `${Number(item.debt_amount || item.invoice_amount || 0).toLocaleString('en-US')} ${item.currency || 'VND'}`],
-          ['Ngay thanh toan:', item.paid_date || item.invoice_date || '-'],
-          ['So tien da thanh toan:', `${Number(item.paid_amount || item.invoice_amount || 0).toLocaleString('en-US')} ${item.currency || 'VND'}`],
-        ];
-
-        details.forEach(([lbl, val]) => {
-          docPage.drawText(lbl, { x: 50, y: curY, size: 10, font: fontBold, color: rgb(0.2, 0.25, 0.3) });
-          docPage.drawText(String(val).slice(0, 75), { x: 180, y: curY, size: 10, font, color: rgb(0.1, 0.1, 0.1) });
-          curY -= 28;
-        });
-
-        if (item._raw_text) {
-          curY -= 15;
-          docPage.drawText('Trich doan du lieu goc:', { x: 50, y: curY, size: 9, font: fontBold, color: rgb(0.3, 0.35, 0.4) });
-          curY -= 15;
-          const snippet = item._raw_text.slice(0, 350).replace(/[\r\n]+/g, ' ');
-          docPage.drawText(snippet.slice(0, 95), { x: 50, y: curY, size: 8, font, color: rgb(0.4, 0.4, 0.4) });
-          curY -= 12;
-          docPage.drawText(snippet.slice(95, 190), { x: 50, y: curY, size: 8, font, color: rgb(0.4, 0.4, 0.4) });
-          curY -= 12;
-          docPage.drawText(snippet.slice(190, 285), { x: 50, y: curY, size: 8, font, color: rgb(0.4, 0.4, 0.4) });
-        }
+      } catch (e) {
+        console.warn('Could not merge document page:', it.source_file, e);
       }
     }
 
     const pdfBytes = await mergedDoc.save();
-    const blob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
+    const blob = new Blob([pdfBytes as any], { type: 'application/pdf' });
     const downloadUrl = URL.createObjectURL(blob);
 
     results.push({
-      groupIndex: gIdx + 1,
+      groupIndex: gIdx,
       filename,
       invoiceCount: groupItems.length,
       blob,

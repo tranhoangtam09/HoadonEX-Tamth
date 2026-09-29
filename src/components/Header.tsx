@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileSpreadsheet, Sparkles, Trash2, FolderSync, ShieldCheck } from 'lucide-react';
+import { FileText, HelpCircle, Trash2, Database, Sparkles } from 'lucide-react';
 import contentData from '../data/contentData.json';
 
 interface HeaderProps {
@@ -16,60 +16,49 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenTemplateInfo,
 }) => {
   return (
-    <header className="bg-gradient-to-r from-[#0d274c] via-[#123b6d] to-[#184882] text-white border-b border-blue-900/50 shadow-md">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          {/* Logo & Title */}
-          <div className="flex items-center space-x-3.5">
-            <div className="w-11 h-11 rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 p-1 flex items-center justify-center shadow-inner">
-              <img
-                src={contentData.app.logo}
-                alt="App Logo"
-                className="w-full h-full object-contain"
-                onError={(e) => {
-                  // Fallback if SVG fails to load
-                  (e.target as HTMLElement).style.display = 'none';
-                }}
-              />
-              <FileSpreadsheet className="w-6 h-6 text-sky-300 hidden only:block" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2.5">
-                <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-                  {contentData.app.title}
-                </h1>
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-sky-500/20 text-sky-300 border border-sky-400/30">
+    <header className="bg-[#0f2d52] text-white shadow-md border-b border-blue-900/60 sticky top-0 z-30">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col sm:flex-row items-center justify-between gap-3">
+        {/* App Title & Branding */}
+        <div className="flex items-center gap-3 text-center sm:text-left">
+          <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-inner shrink-0">
+            <FileText className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 justify-center sm:justify-start">
+              <h1 className="text-lg font-extrabold tracking-tight text-white flex items-center gap-1.5">
+                {contentData.app.title}
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/30 text-blue-200 border border-blue-400/30 font-mono font-medium">
                   {contentData.app.version}
                 </span>
-              </div>
-              <p className="text-xs text-sky-100/80 mt-0.5 line-clamp-1">
-                {contentData.app.tagline}
-              </p>
+              </h1>
             </div>
+            <p className="text-xs text-blue-200/90 font-medium">
+              {contentData.app.subtitle} • Giải ngân bù đắp VND
+            </p>
           </div>
+        </div>
 
-          {/* Action buttons */}
-          <div className="flex items-center flex-wrap gap-2.5">
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2 flex-wrap justify-center">
+          <button
+            onClick={onOpenTemplateInfo}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-800/80 hover:bg-blue-700 text-blue-100 border border-blue-600/40 transition-colors cursor-pointer"
+            title="Xem quy tắc đối chiếu cột mẫu Excel chuẩn A-M"
+          >
+            <HelpCircle className="w-3.5 h-3.5 text-blue-300" />
+            <span>Mẫu Excel chuẩn</span>
+          </button>
+
+          {hasInvoices && (
             <button
-              onClick={onOpenTemplateInfo}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-200 bg-white/10 hover:bg-white/15 border border-white/15 transition-colors cursor-pointer"
-              title="Xem quy chuẩn mẫu Excel"
+              onClick={onClearAll}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-rose-900/40 hover:bg-rose-900/80 text-rose-200 border border-rose-700/50 transition-colors cursor-pointer"
+              title="Xóa toàn bộ danh sách hóa đơn"
             >
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Chuẩn mẫu GN bù đắp</span>
+              <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+              <span>Xóa tất cả</span>
             </button>
-
-            {hasInvoices && (
-              <button
-                onClick={onClearAll}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-rose-200 hover:text-white bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/40 transition-colors cursor-pointer"
-                title="Xóa danh sách hiện tại"
-              >
-                <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-                <span>{contentData.actions.clearAll}</span>
-              </button>
-            )}
-          </div>
+          )}
         </div>
       </div>
     </header>

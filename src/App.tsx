@@ -11,7 +11,7 @@ import { ConfirmClearModal } from './components/ConfirmClearModal';
 import { InvoiceItem } from './types/invoice';
 import { SAMPLE_INVOICES } from './data/sampleInvoices';
 import contentData from './data/contentData.json';
-import { reviewAllInvoices } from './utils/validation';
+import { reviewAllInvoices, sortInvoicesByDate } from './utils/validation';
 import { exportInvoicesToExcel } from './utils/excelExporter';
 import { mergeInvoicesToPdfGroups, MergedPdfResult } from './utils/pdfMerger';
 import { sanitizePurpose } from './utils/textParser';
@@ -20,6 +20,7 @@ import { AlertCircle, CheckCircle2, Info } from 'lucide-react';
 export default function App() {
   const [invoices, setInvoices] = useState<InvoiceItem[]>([]);
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);
+  const [dateSortOrder, setDateSortOrder] = useState<'asc' | 'desc' | null>('asc');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [isMerging, setIsMerging] = useState<boolean>(false);
   const [isExporting, setIsExporting] = useState<boolean>(false);
@@ -80,11 +81,13 @@ export default function App() {
   // Load sample invoices
   const handleLoadSample = () => {
     if (SAMPLE_INVOICES.length === 0) {
-      showToast('Dữ liệu hóa đơn mẫu đã được gỡ bỏ khỏi hệ thống. Vui lòng tải lên hóa đơn thực tế của bạn.', 'info');
+      showToast('Hệ thống đang ở chế độ làm việc với dữ liệu thật. Vui lòng tải lên hóa đơn của bạn.', 'info');
       return;
     }
-    const { reviewedItems } = reviewAllInvoices(SAMPLE_INVOICES);
+    const sorted = sortInvoicesByDate(SAMPLE_INVOICES, 'asc');
+    const { reviewedItems } = reviewAllInvoices(sorted);
     setInvoices(reviewedItems);
+    setDateSortOrder('asc');
     setSelectedIndex(0);
   };
 
@@ -105,19 +108,39 @@ export default function App() {
     showToast('Đã xóa toàn bộ danh sách hóa đơn đang hiển thị', 'info');
   };
 
-  // Add newly extracted invoices
+  // Sắp xếp danh sách hóa đơn theo thứ tự ngày trên hóa đơn
+  const handleSortByDate = (targetOrder?: 'asc' | 'desc') => {
+    if (invoices.length === 0) return;
+    const newOrder = targetOrder || (dateSortOrder === 'asc' ? 'desc' : 'asc');
+    const sorted = sortInvoicesByDate(invoices, newOrder);
+    const { reviewedItems } = reviewAllInvoices(sorted);
+    setInvoices(reviewedItems);
+    setDateSortOrder(newOrder);
+    setSelectedIndex(0);
+    showToast(
+      newOrder === 'asc'
+        ? 'Đã sắp xếp hóa đơn theo ngày tăng dần (từ cũ đến mới)'
+        : 'Đã sắp xếp hóa đơn theo ngày giảm dần (từ mới đến cũ)',
+      'success'
+    );
+  };
+
+  // Add newly extracted invoices - Tự động sắp xếp theo thứ tự ngày trên hóa đơn
   const handleInvoicesExtracted = (newItems: InvoiceItem[]) => {
     const cleanedNewItems = newItems.map((item) => ({
       ...item,
       purpose: sanitizePurpose(item.purpose, item.seller_name, item.invoice_number),
     }));
     const combined = [...invoices, ...cleanedNewItems];
-    const { reviewedItems } = reviewAllInvoices(combined);
+    // Tự động sắp xếp theo trình tự ngày tăng dần (cũ đến mới)
+    const sorted = sortInvoicesByDate(combined, 'asc');
+    const { reviewedItems } = reviewAllInvoices(sorted);
     setInvoices(reviewedItems);
+    setDateSortOrder('asc');
     if (selectedIndex === -1 && reviewedItems.length > 0) {
       setSelectedIndex(0);
     }
-    showToast(`Đã xử lý và kết xuất ${newItems.length} hóa đơn mới`, 'success');
+    showToast(`Đã xử lý & sắp xếp ${newItems.length} hóa đơn mới theo thứ tự ngày lập`, 'success');
   };
 
   // Standardize goods & purpose for all invoices
@@ -152,9 +175,10 @@ export default function App() {
   const handleUpdateInvoice = (updatedItem: InvoiceItem) => {
     const updated = [...invoices];
     updated[selectedIndex] = updatedItem;
+    // Nếu có sự thay đổi ngày, giữ nguyên thứ tự hoặc có thể bấm sắp xếp lại
     const { reviewedItems } = reviewAllInvoices(updated);
     setInvoices(reviewedItems);
-    showToast('Đã cập nhật và chuẩn hóa dữ liệu hóa đơn', 'success');
+    showToast('Đã cập nhật dữ liệu hóa đơn', 'success');
   };
 
   // Run full validation & review
@@ -167,15 +191,20 @@ export default function App() {
     );
   };
 
-  // Merge PDFs in groups of 10
+  // Merge PDFs in groups of 10 - Theo đúng thứ tự ngày hóa đơn
   const handleMergePdf = async () => {
     if (invoices.length === 0) return;
     setIsMerging(true);
     try {
-      const results = await mergeInvoicesToPdfGroups(invoices, 10);
+      // Đảm bảo dữ liệu sắp xếp theo ngày trước khi gộp
+      const sorted = sortInvoicesByDate(invoices, 'asc');
+      setInvoices(sorted);
+      setDateSortOrder('asc');
+
+      const results = await mergeInvoicesToPdfGroups(sorted, 10);
       setPdfGroups(results);
       setIsPdfModalOpen(true);
-      showToast(`Đã gộp thành công ${results.length} tập PDF (tối đa 10 hóa đơn/nhóm)`, 'success');
+      showToast(`Đã gộp thành công ${results.length} tập PDF (sắp xếp theo ngày trên HĐ)`, 'success');
     } catch (err: unknown) {
       console.error('Merge error:', err);
       showToast('Có lỗi khi gộp PDF: ' + (err instanceof Error ? err.message : 'Thử lại sau'), 'warning');
@@ -184,14 +213,16 @@ export default function App() {
     }
   };
 
-  // Export Excel standard template
+  // Export Excel standard template - Luôn xuất theo thứ tự ngày trên hóa đơn
   const handleExportExcel = async () => {
     if (invoices.length === 0) return;
     setIsExporting(true);
     try {
-      // Re-run review first
-      const { reviewedItems } = reviewAllInvoices(invoices);
+      // Sắp xếp theo ngày tăng dần và rà soát dữ liệu
+      const sorted = sortInvoicesByDate(invoices, 'asc');
+      const { reviewedItems } = reviewAllInvoices(sorted);
       setInvoices(reviewedItems);
+      setDateSortOrder('asc');
 
       const result = await exportInvoicesToExcel(reviewedItems);
       // Trigger browser download
@@ -204,7 +235,7 @@ export default function App() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      showToast(`Đã kết xuất thành công ${result.filename} (${result.count} hóa đơn)`, 'success');
+      showToast(`Đã xuất ${result.filename} (${result.count} hóa đơn sắp xếp theo ngày HĐ)`, 'success');
     } catch (err: unknown) {
       console.error('Export Excel error:', err);
       showToast('Lỗi khi xuất file Excel: ' + (err instanceof Error ? err.message : 'Thử lại sau'), 'warning');
@@ -290,6 +321,8 @@ export default function App() {
           invoiceCount={invoices.length}
           onReview={handleReviewData}
           onStandardizePurposes={handleStandardizePurposes}
+          onSortByDate={() => handleSortByDate()}
+          dateSortOrder={dateSortOrder}
           onMerge={handleMergePdf}
           onExportExcel={handleExportExcel}
           onClearAll={handleOpenClearModal}
@@ -304,6 +337,8 @@ export default function App() {
           onSelectInvoice={handleSelectInvoice}
           onDeleteInvoice={handleDeleteInvoice}
           onClearAll={handleOpenClearModal}
+          onSortByDate={() => handleSortByDate()}
+          dateSortOrder={dateSortOrder}
         />
 
         {/* Side-by-side Inspection & Editing Workspace */}
@@ -363,7 +398,7 @@ export default function App() {
             {contentData.app.title} v{contentData.app.version} — Chuẩn hóa hóa đơn điện tử & giải ngân bù đắp
           </span>
           <span className="font-mono text-slate-400">
-            Nguyên tắc: DATA INTO TEMPLATE – NOT TEMPLATE INTO DATA
+            Dữ liệu xuất ra luôn sắp xếp theo thứ tự ngày trên hóa đơn
           </span>
         </div>
       </footer>

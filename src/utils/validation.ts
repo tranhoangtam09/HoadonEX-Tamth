@@ -48,6 +48,110 @@ export function normalizeDate(val: unknown): string {
   return raw;
 }
 
+/**
+ * Trích xuất timestamp từ chuỗi ngày tháng hóa đơn để phục vụ sắp xếp theo trình tự thời gian
+ */
+export function parseDateToTimestamp(val: unknown): number {
+  if (val === null || val === undefined || val === '') return Number.MAX_SAFE_INTEGER;
+  const raw = cleanString(val);
+  if (!raw) return Number.MAX_SAFE_INTEGER;
+
+  // Pattern: "ngày 15 tháng 03 năm 2024" hoặc "ngày 15 Tháng 3 Năm 2024"
+  const vnMatch = raw.match(/ngày\s*(\d{1,2})\s*tháng\s*(\d{1,2})\s*năm\s*(\d{4})/i);
+  if (vnMatch) {
+    const day = parseInt(vnMatch[1], 10);
+    const month = parseInt(vnMatch[2], 10);
+    const year = parseInt(vnMatch[3], 10);
+    const d = new Date(year, month - 1, day);
+    return isNaN(d.getTime()) ? Number.MAX_SAFE_INTEGER : d.getTime();
+  }
+
+  // Loại bỏ phần giờ nếu có: T14:30:00 hoặc 14:30:00
+  const dateOnly = raw.replace(/[T\s].*$/, '').trim();
+
+  // Pattern: dd/mm/yyyy hoặc dd-mm-yyyy hoặc dd.mm.yyyy
+  const dmyMatch = dateOnly.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+  if (dmyMatch) {
+    const day = parseInt(dmyMatch[1], 10);
+    const month = parseInt(dmyMatch[2], 10);
+    const year = parseInt(dmyMatch[3], 10);
+    const d = new Date(year, month - 1, day);
+    return isNaN(d.getTime()) ? Number.MAX_SAFE_INTEGER : d.getTime();
+  }
+
+  // Pattern: yyyy/mm/dd hoặc yyyy-mm-dd hoặc yyyy.mm.dd
+  const ymdMatch = dateOnly.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})$/);
+  if (ymdMatch) {
+    const year = parseInt(ymdMatch[1], 10);
+    const month = parseInt(ymdMatch[2], 10);
+    const day = parseInt(ymdMatch[3], 10);
+    const d = new Date(year, month - 1, day);
+    return isNaN(d.getTime()) ? Number.MAX_SAFE_INTEGER : d.getTime();
+  }
+
+  // Pattern: 8 chữ số YYYYMMDD (ví dụ: 20240315)
+  const yyyymmdd = dateOnly.match(/^(20\d{2})(0[1-9]|1[0-2])([0-2]\d|3[01])$/);
+  if (yyyymmdd) {
+    const year = parseInt(yyyymmdd[1], 10);
+    const month = parseInt(yyyymmdd[2], 10);
+    const day = parseInt(yyyymmdd[3], 10);
+    const d = new Date(year, month - 1, day);
+    return isNaN(d.getTime()) ? Number.MAX_SAFE_INTEGER : d.getTime();
+  }
+
+  // Pattern: 8 chữ số DDMMYYYY (ví dụ: 15032024)
+  const ddmmyyyy = dateOnly.match(/^([0-2]\d|3[01])(0[1-9]|1[0-2])(20\d{2})$/);
+  if (ddmmyyyy) {
+    const day = parseInt(ddmmyyyy[1], 10);
+    const month = parseInt(ddmmyyyy[2], 10);
+    const year = parseInt(ddmmyyyy[3], 10);
+    const d = new Date(year, month - 1, day);
+    return isNaN(d.getTime()) ? Number.MAX_SAFE_INTEGER : d.getTime();
+  }
+
+  const parsed = Date.parse(dateOnly);
+  if (!isNaN(parsed)) return parsed;
+
+  return Number.MAX_SAFE_INTEGER;
+}
+
+/**
+ * Sắp xếp danh sách hóa đơn theo thứ tự ngày trên hóa đơn (mặc định 'asc': từ ngày cũ nhất đến mới nhất).
+ * Khi trùng ngày: sắp xếp theo số hóa đơn (dạng số), ký hiệu, và mã số thuế.
+ */
+export function sortInvoicesByDate(
+  items: InvoiceItem[],
+  order: 'asc' | 'desc' = 'asc'
+): InvoiceItem[] {
+  return [...items].sort((a, b) => {
+    const timeA = parseDateToTimestamp(a.invoice_date);
+    const timeB = parseDateToTimestamp(b.invoice_date);
+
+    // Hóa đơn thiếu ngày hoặc không nhận diện được ngày sẽ đặt ở cuối danh sách
+    if (timeA === Number.MAX_SAFE_INTEGER && timeB === Number.MAX_SAFE_INTEGER) {
+      return String(a.invoice_number || '').localeCompare(String(b.invoice_number || ''), undefined, { numeric: true });
+    }
+    if (timeA === Number.MAX_SAFE_INTEGER) return 1;
+    if (timeB === Number.MAX_SAFE_INTEGER) return -1;
+
+    const diff = timeA - timeB;
+    if (diff !== 0) {
+      return order === 'asc' ? diff : -diff;
+    }
+
+    // Tiêu chí phụ 1: Số hóa đơn (so sánh dạng số tự nhiên)
+    const numCompare = String(a.invoice_number || '').localeCompare(String(b.invoice_number || ''), undefined, { numeric: true });
+    if (numCompare !== 0) return numCompare;
+
+    // Tiêu chí phụ 2: Ký hiệu hóa đơn
+    const symCompare = String(a.invoice_symbol || '').localeCompare(String(b.invoice_symbol || ''));
+    if (symCompare !== 0) return symCompare;
+
+    // Tiêu chí phụ 3: Mã số thuế bên bán
+    return String(a.tax_code || '').localeCompare(String(b.tax_code || ''));
+  });
+}
+
 export function parseAmountNumber(val: unknown): number | '' {
   if (val === '' || val === null || val === undefined) return '';
   if (typeof val === 'number') return isNaN(val) ? '' : val;

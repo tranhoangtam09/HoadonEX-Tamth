@@ -1,6 +1,6 @@
 import { InvoiceItem } from '../types/invoice';
 
 /**
- * Danh sách hóa đơn mẫu - Đã dọn dẹp để ứng dụng hoàn toàn sạch khi khởi chạy
+ * Danh sách hóa đơn mẫu - Sạch sẽ không chứa dữ liệu giả khi khởi chạy
  */
 export const SAMPLE_INVOICES: InvoiceItem[] = [];

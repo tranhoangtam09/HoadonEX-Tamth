@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
 import { InvoiceItem } from '../types/invoice';
-import { parseAmountNumber } from './validation';
+import { parseAmountNumber, sortInvoicesByDate } from './validation';
 import { sanitizePurpose } from './textParser';
 
 export interface ExcelExportResult {
@@ -13,6 +13,9 @@ export async function exportInvoicesToExcel(
   items: InvoiceItem[],
   customFileName?: string
 ): Promise<ExcelExportResult> {
+  // Sắp xếp các hóa đơn theo đúng thứ tự ngày trên hóa đơn (từ ngày cũ nhất đến mới nhất)
+  const sortedItems = sortInvoicesByDate(items, 'asc');
+
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'Invoice Extractor V3';
   workbook.lastModifiedBy = 'Invoice Extractor V3';
@@ -42,7 +45,7 @@ export async function exportInvoicesToExcel(
   worksheet.mergeCells('A2:M2');
   const subCell = worksheet.getCell('A2');
   const now = new Date();
-  const dateString = `Ngày lập bảng kê: ${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} • Số lượng hóa đơn: ${items.length}`;
+  const dateString = `Ngày lập bảng kê: ${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} • Số lượng hóa đơn: ${sortedItems.length} (Đã sắp xếp theo thứ tự ngày lập HĐ)`;
   subCell.value = dateString;
   subCell.font = { name: 'Arial', size: 10, italic: true, color: { argb: 'FF555555' } };
   subCell.alignment = { horizontal: 'center', vertical: 'middle' };
@@ -96,7 +99,7 @@ export async function exportInvoicesToExcel(
   const startRowIndex = 4;
 
   // Insert data rows
-  items.forEach((item, idx) => {
+  sortedItems.forEach((item, idx) => {
     const rowNum = startRowIndex + idx;
     const row = worksheet.getRow(rowNum);
     row.height = 24;
@@ -153,7 +156,7 @@ export async function exportInvoicesToExcel(
     });
   });
 
-  const lastDataRow = startRowIndex + items.length - 1;
+  const lastDataRow = startRowIndex + sortedItems.length - 1;
   const summaryRowIndex = lastDataRow + 1;
   const summaryRow = worksheet.getRow(summaryRowIndex);
   summaryRow.height = 28;
@@ -183,7 +186,7 @@ export async function exportInvoicesToExcel(
 
   // Column H (Total Invoice Amount)
   const sumH = summaryRow.getCell(8);
-  sumH.value = items.length > 0 ? { formula: `SUM(H${startRowIndex}:H${lastDataRow})` } : 0;
+  sumH.value = sortedItems.length > 0 ? { formula: `SUM(H${startRowIndex}:H${lastDataRow})` } : 0;
   sumH.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF0F2B59' } };
   sumH.numFmt = '#,##0';
   sumH.alignment = { horizontal: 'right', vertical: 'middle' };
@@ -221,7 +224,7 @@ export async function exportInvoicesToExcel(
 
   // Column K (Total Debt Amount)
   const sumK = summaryRow.getCell(11);
-  sumK.value = items.length > 0 ? { formula: `SUM(K${startRowIndex}:K${lastDataRow})` } : 0;
+  sumK.value = sortedItems.length > 0 ? { formula: `SUM(K${startRowIndex}:K${lastDataRow})` } : 0;
   sumK.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF0F2B59' } };
   sumK.numFmt = '#,##0';
   sumK.alignment = { horizontal: 'right', vertical: 'middle' };
@@ -246,7 +249,7 @@ export async function exportInvoicesToExcel(
 
   // Column M (Total Paid Amount)
   const sumM = summaryRow.getCell(13);
-  sumM.value = items.length > 0 ? { formula: `SUM(M${startRowIndex}:M${lastDataRow})` } : 0;
+  sumM.value = sortedItems.length > 0 ? { formula: `SUM(M${startRowIndex}:M${lastDataRow})` } : 0;
   sumM.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF0F2B59' } };
   sumM.numFmt = '#,##0';
   sumM.alignment = { horizontal: 'right', vertical: 'middle' };
@@ -274,6 +277,6 @@ export async function exportInvoicesToExcel(
   return {
     filename: finalFilename,
     blob,
-    count: items.length,
+    count: sortedItems.length,
   };
 }
